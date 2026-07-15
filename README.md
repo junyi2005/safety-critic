@@ -68,8 +68,27 @@ Two dependencies are not on PyPI and must be installed separately:
 - [habitat-sim](https://github.com/facebookresearch/habitat-sim) — needed by
   `scripts/build_esdf.py` only, for navmesh queries.
 
-Collect training data with the companion repository,
-[habitat-lab-navdp](../habitat-lab-navdp).
+## Data
+
+Training data comes from the companion repository
+**[habitat-lab-navdp](https://github.com/junyi2005/habitat-lab-navdp)**, kept
+separate because it is a fork of [habitat-lab](https://github.com/facebookresearch/habitat-lab).
+It collects paired RGB-D observations and smooth navigable trajectories from
+HM3D, MP3D and Gibson:
+
+- random start–goal sampling with automatic per-floor detection,
+- shortest-path planning over the habitat-sim navmesh,
+- cubic-spline smoothing with obstacle-clearance refinement,
+- domain randomization of camera height and pitch.
+
+It writes one folder per scene (`rgb.pkl`, `depth.pkl`, `traj.pkl`,
+`episode_info.pkl`), which is exactly the layout `NavDPDataset` expects — point
+`--data_root` at the directory holding them.
+
+```bash
+git clone https://github.com/junyi2005/habitat-lab-navdp
+# see its docs/data_collection.md for the collection walkthrough
+```
 
 ## Usage
 
