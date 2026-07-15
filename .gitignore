@@ -1,0 +1,27 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Checkpoints and data
+*.ckpt
+*.npz
+*.pkl
+
+# Logs / outputs
+runs/
+eval_*_scatter.png
+
+# Test cache
+.pytest_cache/

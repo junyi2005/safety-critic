@@ -1,0 +1,25 @@
+# Core
+torch
+numpy
+scipy
+opencv-python
+matplotlib
+tqdm
+
+# Diffusion policy / schedulers
+diffusers
+transformers
+
+# Logging
+tensorboard
+
+# Tests
+pytest
+
+# Required by scripts/build_esdf.py only (navigation-mesh queries).
+# Not installable from PyPI; see https://github.com/facebookresearch/habitat-sim
+habitat-sim
+
+# Required by navdp_safety/models/backbone.py: the Depth-Anything-V2 package must be
+# importable as `depth_anything.depth_anything_v2.dpt`.
+# See https://github.com/DepthAnything/Depth-Anything-V2

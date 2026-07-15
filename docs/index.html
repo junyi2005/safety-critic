@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Adaptive Safety Margins for Visual Navigation</title>
+<meta name="description" content="A context-conditioned safety critic that replaces fixed clearance margins for diffusion-based visual navigation. NYU Abu Dhabi.">
+<style>
+:root{
+  --bg:#0B0D10; --surface:#14171C; --surface-2:#1B1F26; --line:#2A303A;
+  --text:#F2F4F7; --muted:#AEB7C4; --dim:#7F8A99;
+  --danger:#3B7DFF;   /* low critic score  */
+  --safe:#FF5252;     /* high critic score */
+  --accent:#5B8CFF;
+  --radius:14px; --maxw:1120px;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#FBFBFD; --surface:#FFFFFF; --surface-2:#F3F5F8; --line:#E1E5EC;
+         --text:#10131A; --muted:#4E5866; --dim:#6B7684; --accent:#2B5FE3; }
+}
+:root[data-theme="dark"]{ --bg:#0B0D10; --surface:#14171C; --surface-2:#1B1F26; --line:#2A303A;
+  --text:#F2F4F7; --muted:#AEB7C4; --dim:#7F8A99; --accent:#5B8CFF; }
+:root[data-theme="light"]{ --bg:#FBFBFD; --surface:#FFFFFF; --surface-2:#F3F5F8; --line:#E1E5EC;
+  --text:#10131A; --muted:#4E5866; --dim:#6B7684; --accent:#2B5FE3; }
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:17px; line-height:1.65; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+a{color:var(--accent)}
+
+/* ---------- critic gradient: the one motif, used sparingly ---------- */
+.critic-rule{height:3px;border:0;border-radius:2px;
+  background:linear-gradient(90deg,var(--danger),#8E6BD6,var(--safe));}
+
+/* ---------- nav ---------- */
+nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:58px;gap:16px}
+nav .brand{font-weight:650;font-size:15px;letter-spacing:-.01em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+nav .links{display:flex;gap:20px;font-size:14px}
+nav .links a{color:var(--muted);text-decoration:none}
+nav .links a:hover{color:var(--text)}
+@media(max-width:720px){nav .links{display:none}}
+
+/* ---------- hero ---------- */
+header{padding:76px 0 44px;text-align:center}
+h1{font-size:clamp(30px,4.6vw,52px);line-height:1.12;letter-spacing:-.025em;
+  font-weight:700;margin:0 0 26px;max-width:15ch;margin-inline:auto}
+.authors{font-size:17px;color:var(--text);margin:0 0 6px}
+.authors a{text-decoration:none}
+.affil{color:var(--muted);font-size:15px;margin:0 0 4px}
+.note{color:var(--dim);font-size:13.5px;margin:0}
+/* Provenance callout: readable, not decorative — it qualifies the numbers beside it. */
+#results .note{
+  color:var(--muted); font-size:14.5px; line-height:1.6; max-width:78ch;
+  margin:0 0 26px; padding:14px 16px; border-radius:8px;
+  background:var(--surface-2); border:1px solid var(--line);
+  border-left:3px solid var(--dim);
+}
+#results .note strong{color:var(--text)}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface-2);
+  border:1px solid var(--line);color:var(--text);text-decoration:none;
+  padding:9px 18px;border-radius:999px;font-size:14.5px;font-weight:520;
+  transition:border-color .15s,transform .15s}
+.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
+.btn svg{width:15px;height:15px;fill:currentColor;flex:none}
+
+/* ---------- sections ---------- */
+section{padding:60px 0;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+h2{font-size:clamp(21px,2.4vw,28px);letter-spacing:-.02em;font-weight:660;margin:0 0 8px}
+.kicker{color:var(--accent);font-size:12.5px;font-weight:640;letter-spacing:.09em;
+  text-transform:uppercase;margin:0 0 8px}
+.lede{color:var(--muted);max-width:70ch;margin:0 0 30px}
+p{max-width:72ch}
+
+/* ---------- demo: portrait video + text ---------- */
+.demo{display:grid;grid-template-columns:minmax(0,340px) 1fr;gap:44px;align-items:center}
+@media(max-width:860px){.demo{grid-template-columns:1fr;gap:28px}}
+.phone{border-radius:20px;overflow:hidden;border:1px solid var(--line);
+  background:#000;box-shadow:0 20px 50px rgba(0,0,0,.35);line-height:0}
+.phone video{width:100%;height:auto;display:block}
+.beat{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.beat:last-child{border-bottom:0}
+.beat .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--surface-2);
+  border:1px solid var(--line);display:grid;place-items:center;font-size:12.5px;
+  font-weight:660;color:var(--muted)}
+.beat p{margin:0;font-size:15.5px}
+.beat strong{font-weight:620}
+
+/* ---------- figures ---------- */
+figure{margin:0}
+figure img{width:100%;height:auto;display:block;border-radius:var(--radius);
+  border:1px solid var(--line);background:#fff}
+figcaption{color:var(--dim);font-size:13.5px;margin-top:12px;max-width:80ch}
+.fig-narrow img{max-width:430px;margin-inline:auto}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+.two video{width:100%;height:auto;display:block;border-radius:var(--radius);
+  border:1px solid var(--line);background:#000}
+.two figcaption{margin-bottom:4px}
+h3.sub{font-size:17px;font-weight:640;letter-spacing:-.01em;margin:44px 0 6px}
+
+/* colorbar legend */
+.legend{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12.5px;color:var(--dim)}
+.legend .bar{flex:1;height:8px;border-radius:4px;
+  background:linear-gradient(90deg,var(--danger),#8E6BD6,var(--safe))}
+
+/* ---------- tables ---------- */
+.scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14.5px;
+  font-variant-numeric:tabular-nums}
+caption{text-align:left;color:var(--dim);font-size:13.5px;padding-bottom:10px}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{color:var(--muted);font-weight:600;font-size:12.5px;letter-spacing:.04em;
+  text-transform:uppercase;border-bottom:1px solid var(--line)}
+.grp{border-left:1px solid var(--line)}
+tbody tr.ours{background:color-mix(in srgb,var(--accent) 11%,transparent)}
+tbody tr.ours td{font-weight:650;border-bottom-color:transparent}
+tbody tr:last-child td{border-bottom:0}
+
+/* ---------- code cards ---------- */
+.repos{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:860px){.repos{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:24px;display:flex;flex-direction:column;gap:12px}
+.card h3{margin:0;font-size:17px;font-weight:640;display:flex;align-items:center;gap:9px}
+.card h3 svg{width:17px;height:17px;fill:var(--muted);flex:none}
+.tag{display:inline-block;background:var(--surface-2);border:1px solid var(--line);
+  color:var(--muted);font-size:11.5px;font-weight:620;letter-spacing:.05em;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;align-self:flex-start}
+.card p{margin:0;color:var(--muted);font-size:14.5px;flex:1}
+.card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.card ul li{margin:3px 0}
+.card .go{margin-top:4px}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px;overflow-x:auto;font-size:13px;line-height:1.55;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);margin:0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+
+footer{border-top:1px solid var(--line);padding:36px 0 60px;color:var(--dim);font-size:13.5px}
+footer p{max-width:78ch;margin:0 0 8px}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="brand">Adaptive Safety Margins for Visual Navigation</span>
+  <div class="links">
+    <a href="#demo">Demo</a><a href="#method">Method</a>
+    <a href="#results">Results</a><a href="#code">Code</a><a href="#cite">BibTeX</a>
+  </div>
+</div></nav>
+
+<header><div class="wrap">
+  <h1>Learning Adaptive Safety Margins for Visual Navigation</h1>
+  <p class="authors">
+    Junyi Hu<sup>1,†</sup>, Shuaihang Yuan<sup>1,†,‡</sup>,
+    Geeta Chandra Raju Bethala<sup>1</sup>,
+    <a href="mailto:yfang@nyu.edu">Yi Fang</a><sup>1,*</sup>, Anthony Tzes<sup>1</sup>
+  </p>
+  <p class="affil"><sup>1</sup>New York University Abu Dhabi</p>
+  <p class="note">† Equal contribution &nbsp;·&nbsp; ‡ Project lead &nbsp;·&nbsp; * Corresponding author</p>
+
+  <div class="btns">
+    <a class="btn" href="#" aria-disabled="true" title="Link once posted">
+      <svg viewBox="0 0 16 16"><path d="M4 1h5l3 3v11H4z" opacity=".35"/><path d="M9 1l3 3H9z"/></svg>
+      Paper (arXiv)</a>
+    <a class="btn" href="#demo">
+      <svg viewBox="0 0 16 16"><path d="M5 3l8 5-8 5z"/></svg> Video</a>
+    <a class="btn" href="https://github.com/junyi2005/navdp-safety-critic" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16"><path d="M8 0a8 8 0 00-2.5 15.6c.4.1.5-.2.5-.4v-1.4c-2 .5-2.5-.9-2.5-.9-.4-.9-.9-1.1-.9-1.1-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.2 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-3.9 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 014 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3-1.8 3.7-3.6 3.9.3.3.5.7.5 1.5v2.2c0 .2.1.5.6.4A8 8 0 008 0z"/></svg>
+      Code</a>
+  </div>
+</div></header>
+
+<div class="wrap"><hr class="critic-rule"></div>
+
+<section id="demo"><div class="wrap">
+  <p class="kicker">Real-world demo</p>
+  <h2>A Unitree G1 in a cluttered lab, trained only in simulation</h2>
+  <p class="lede">The policy proposes many candidate trajectories from egocentric RGB-D, then a learned
+    critic scores them and executes the best one — with no map building and no task-specific tuning.</p>
+
+  <div class="demo">
+    <div class="phone">
+      <video src="assets/video/demo_main.mp4" poster="assets/img/demo_poster.jpg"
+             controls playsinline preload="metadata"></video>
+    </div>
+    <div>
+      <div class="beat"><span class="n">1</span><p><strong>Navigating clutter.</strong>
+        The humanoid moves through a lab with narrow passages and irregular obstacles,
+        driven end-to-end from RGB-D.</p></div>
+      <div class="beat"><span class="n">2</span><p><strong>Proposing trajectories.</strong>
+        From the robot's first-person view, the diffusion generator samples <em>K</em>&nbsp;=&nbsp;16
+        candidate paths under the same observation.</p></div>
+      <div class="beat"><span class="n">3</span><p><strong>Selecting the safest.</strong>
+        The critic ranks every candidate and the highest-scoring trajectory is executed.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="motivation"><div class="wrap">
+  <p class="kicker">Motivation</p>
+  <h2>A fixed clearance margin is wrong in both directions</h2>
+  <p class="lede">Set the margin high and the robot detours and times out in open space. Set it low and it
+    cuts corners in clutter under perception bias. The clearance a robot actually needs is
+    context dependent, so a single global threshold cannot be right everywhere.</p>
+  <figure class="fig-narrow">
+    <img src="assets/img/teaser.png" alt="Comparison between a fixed-margin critic and the adaptive safety critic: fixed margins cause conservative detours or brittle near-boundary choices, while the learned critic adapts its clearance budget.">
+    <figcaption>Fixed margins cause conservative detours or brittle near-boundary choices. Our critic
+      learns a clearance preference for navigation in clutter.</figcaption>
+  </figure>
+</div></section>
+
+<section id="method"><div class="wrap">
+  <p class="kicker">Method</p>
+  <h2>Generate, then select with a learned critic</h2>
+  <p class="lede">A diffusion generator proposes candidates from RGB-D and a goal; a learnable safety
+    critic scores them. ESDF geometry is privileged information used <em>only offline</em> to supervise
+    training — the deployed policy never builds a map.</p>
+  <figure>
+    <img src="assets/img/architecture.png" alt="System architecture: a diffusion policy samples candidate trajectories from RGB-D observations and the goal; a critic-function based selector scores them. Training is two-stage, with ESDF supervision used offline only.">
+    <figcaption>During inference the diffusion policy samples candidates from RGB-D and the goal, and the
+      selector scores them without map building. ESDF supervises training offline.</figcaption>
+  </figure>
+</div></section>
+
+<section id="results"><div class="wrap">
+  <p class="kicker">Results</p>
+  <h2>PointGoal navigation in HM3D and MP3D</h2>
+  <p class="lede">300 episodes per policy, identical start–goal pairs across all methods, 500-step timeout.
+    Cross-dataset transfer is HM3D&nbsp;→&nbsp;MP3D.</p>
+
+  <p class="note" role="note"><strong>Provenance.</strong> These tables were produced by an earlier
+    training pipeline that did not implement the critic described above, and those runs are not
+    reproducible from the released code. Re-running the benchmarks against the released
+    implementation is in progress, and these numbers will be replaced by the results of those runs.
+    Please read the <a href="#code">code</a> — not this table — as the description of what the
+    critic does.</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Success rate (SR) and success weighted by path length (SPL); higher is better.</caption>
+    <thead>
+      <tr><th rowspan="2">Method</th>
+          <th colspan="2" class="grp">HM3D</th>
+          <th colspan="2" class="grp">MP3D</th>
+          <th colspan="2" class="grp">Cross-dataset</th></tr>
+      <tr><th class="grp">SR</th><th>SPL</th>
+          <th class="grp">SR</th><th>SPL</th>
+          <th class="grp">SR</th><th>SPL</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>NavDP</td>     <td class="grp">0.710</td><td>0.529</td><td class="grp">0.627</td><td>0.431</td><td class="grp">0.523</td><td>0.349</td></tr>
+      <tr><td>iPlanner</td>  <td class="grp">0.653</td><td>0.573</td><td class="grp">0.603</td><td>0.492</td><td class="grp">0.570</td><td>0.436</td></tr>
+      <tr><td>ViPlanner</td> <td class="grp">0.683</td><td>0.508</td><td class="grp">0.577</td><td>0.407</td><td class="grp">0.553</td><td>0.413</td></tr>
+      <tr><td>PointNav</td>  <td class="grp">0.547</td><td>0.406</td><td class="grp">0.390</td><td>0.251</td><td class="grp">0.340</td><td>0.216</td></tr>
+      <tr class="ours"><td>Ours</td><td class="grp">0.783</td><td>0.611</td><td class="grp">0.680</td><td>0.523</td><td class="grp">0.597</td><td>0.465</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div style="height:34px"></div>
+
+  <div class="scroller">
+  <table>
+    <caption>Real-world PointGoal on a Unitree G1, 10 episodes per scene (successes and rate).</caption>
+    <thead><tr><th>Method</th><th class="grp">Corridor (easy)</th>
+      <th class="grp">Apartment (medium)</th><th class="grp">Lab (hard)</th></tr></thead>
+    <tbody>
+      <tr><td>NavDP</td>       <td class="grp">10/10 (1.0)</td><td class="grp">9/10 (0.9)</td><td class="grp">6/10 (0.6)</td></tr>
+      <tr><td>ViPlanner</td>   <td class="grp">9/10 (0.9)</td><td class="grp">6/10 (0.6)</td><td class="grp">4/10 (0.4)</td></tr>
+      <tr><td>PointNav</td>    <td class="grp">5/10 (0.5)</td><td class="grp">5/10 (0.5)</td><td class="grp">0/10 (0.0)</td></tr>
+      <tr><td>EGO-Planner</td> <td class="grp">5/10 (0.5)</td><td class="grp">4/10 (0.4)</td><td class="grp">1/10 (0.1)</td></tr>
+      <tr class="ours"><td>Ours</td><td class="grp">10/10 (1.0)</td><td class="grp">10/10 (1.0)</td><td class="grp">8/10 (0.8)</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div></section>
+
+<section id="qualitative"><div class="wrap">
+  <p class="kicker">Qualitative</p>
+  <h2>What the critic sees</h2>
+  <p class="lede">The highest- and lowest-scored trajectories back-projected onto the robot's
+    first-person view across all three environments.</p>
+  <figure>
+    <img src="assets/img/realworld_fpv.png" alt="Real-world results: highest- and lowest-scored trajectories projected onto the robot first-person view across corridor, apartment and lab scenes.">
+    <figcaption>Blue-to-red encodes the critic score from low (dangerous) to high (safe). Across corridor,
+      apartment and lab, the policy keeps consistent margins as scene difficulty increases.</figcaption>
+  </figure>
+
+  <div style="height:38px"></div>
+
+  <figure>
+    <img src="assets/img/narrow_don.png" alt="A real-world test at checkpoints A and B with Degree of Narrowness near 0.75: NavDP fails at both while our policy passes the cluttered obstacles.">
+    <figcaption>At Degree of Narrowness ≈ 0.75, NavDP with a fixed <em>d</em><sub>min</sub> = 0.5&nbsp;m
+      judges the corridor impassable and stalls (left), while our policy tightens its learned constraint
+      and passes (right).</figcaption>
+  </figure>
+
+  <div style="height:38px"></div>
+
+  <h3 class="sub">Candidate sets in simulation</h3>
+  <p class="lede">Each clip pairs the robot's RGB view with the <em>K</em>&nbsp;=&nbsp;16 sampled
+    trajectories, coloured by the score the critic assigns them.</p>
+  <div class="two">
+    <div>
+      <video src="assets/video/viz1.mp4" poster="assets/img/viz1_poster.jpg"
+             controls playsinline preload="none" muted loop></video>
+      <figcaption>Living room — the candidate set fans out toward open floor.</figcaption>
+    </div>
+    <div>
+      <video src="assets/video/viz2.mp4" poster="assets/img/viz2_poster.jpg"
+             controls playsinline preload="none" muted loop></video>
+      <figcaption>Same room, wider spread as the goal direction opens up.</figcaption>
+    </div>
+    <div>
+      <video src="assets/video/viz3.mp4" poster="assets/img/viz3_poster.jpg"
+             controls playsinline preload="none" muted loop></video>
+      <figcaption>Hallway — candidates commit to a consistent diagonal.</figcaption>
+    </div>
+    <div>
+      <video src="assets/video/viz4.mp4" poster="assets/img/viz4_poster.jpg"
+             controls playsinline preload="none" muted loop></video>
+      <figcaption>Kitchen — candidates against the occupancy of the counter island.</figcaption>
+    </div>
+  </div>
+</div></section>
+
+<section id="code"><div class="wrap">
+  <p class="kicker">Open source</p>
+  <h2>Code</h2>
+  <p class="lede">Released in two parts: the Habitat-based data collection used to build the training set,
+    and the training code for the generator and the trajectory scorer.</p>
+
+  <div class="repos">
+    <div class="card">
+      <span class="tag">Data collection</span>
+      <h3><svg viewBox="0 0 16 16"><path d="M8 0a8 8 0 100 16A8 8 0 008 0z" opacity=".25"/><path d="M4 8h8M8 4v8"/></svg>habitat-lab-navdp</h3>
+      <p>Collects paired RGB-D observations and smooth navigable trajectories from HM3D, MP3D and Gibson
+        scenes.</p>
+      <ul>
+        <li>Random start–goal sampling with floor detection</li>
+        <li>Shortest-path planning over the habitat-sim navmesh</li>
+        <li>Cubic-spline smoothing and obstacle-clearance refinement</li>
+        <li>Domain randomization of camera height and pitch</li>
+      </ul>
+      <p class="go"><a href="https://github.com/junyi2005/habitat-lab-navdp" target="_blank" rel="noopener">Repository →</a></p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Training</span>
+      <h3><svg viewBox="0 0 16 16"><path d="M2 2h12v12H2z" opacity=".25"/><path d="M5 8h6M8 5v6"/></svg>navdp-safety-critic</h3>
+      <p>Trains the diffusion generator, then the safety critic as a teacher, then distils it into
+        the RGB-D selector.</p>
+      <ul>
+        <li>Conditional diffusion generator (DDPM, <em>K</em>=16 candidates)</li>
+        <li>Context-conditioned margin head <em>q<sub>&eta;</sub></em>, CBF residual, gated detour ratio</li>
+        <li>Adversarial teacher training against A*-sampled non-expert trajectories</li>
+        <li>Student distillation: RGB-D only, no ESDF at inference</li>
+      </ul>
+      <p class="go"><a href="https://github.com/junyi2005/navdp-safety-critic" target="_blank" rel="noopener">Repository →</a></p>
+    </div>
+  </div>
+</div></section>
+
+<section id="cite"><div class="wrap">
+  <p class="kicker">Citation</p>
+  <h2>BibTeX</h2>
+  <pre><code>@inproceedings{hu2026adaptive,
+  title     = {Learning Adaptive Safety Margins for Visual Navigation},
+  author    = {Hu, Junyi and Yuan, Shuaihang and Bethala, Geeta Chandra Raju
+               and Fang, Yi and Tzes, Anthony},
+  booktitle = {},
+  year      = {2026}
+}</code></pre>
+</div></section>
+
+<footer><div class="wrap">
+  <p>Authors appreciate the support provided by the NYUAD Center for Artificial Intelligence and Robotics
+     (CAIR), funded by Tamkeen under the NYUAD Research Institute Award CG010.</p>
+  <p>© 2026 the authors. New York University Abu Dhabi.</p>
+</div></footer>
+
+</body>
+</html>
