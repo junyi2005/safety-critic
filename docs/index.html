@@ -177,7 +177,7 @@ footer p{max-width:78ch;margin:0 0 8px}
       Paper (arXiv)</a>
     <a class="btn" href="#demo">
       <svg viewBox="0 0 16 16"><path d="M5 3l8 5-8 5z"/></svg> Video</a>
-    <a class="btn" href="https://github.com/junyi2005" target="_blank" rel="noopener">
+    <a class="btn" href="https://github.com/junyi2005/navdp-safety-critic" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16"><path d="M8 0a8 8 0 00-2.5 15.6c.4.1.5-.2.5-.4v-1.4c-2 .5-2.5-.9-2.5-.9-.4-.9-.9-1.1-.9-1.1-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.2 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-3.9 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 014 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3-1.8 3.7-3.6 3.9.3.3.5.7.5 1.5v2.2c0 .2.1.5.6.4A8 8 0 008 0z"/></svg>
       Code</a>
   </div>
@@ -355,20 +355,21 @@ footer p{max-width:78ch;margin:0 0 8px}
         <li>Cubic-spline smoothing and obstacle-clearance refinement</li>
         <li>Domain randomization of camera height and pitch</li>
       </ul>
-      <p class="go"><a href="#" aria-disabled="true">Repository — link once published</a></p>
+      <p class="go"><a href="https://github.com/junyi2005/navdp-data-collection" target="_blank" rel="noopener">Repository →</a></p>
     </div>
 
     <div class="card">
       <span class="tag">Training</span>
       <h3><svg viewBox="0 0 16 16"><path d="M2 2h12v12H2z" opacity=".25"/><path d="M5 8h6M8 5v6"/></svg>navdp-safety-critic</h3>
-      <p>Trains the diffusion trajectory generator and the ESDF-supervised trajectory scorer.</p>
+      <p>Trains the diffusion generator, then the safety critic as a teacher, then distils it into
+        the RGB-D selector.</p>
       <ul>
         <li>Conditional diffusion generator (DDPM, <em>K</em>=16 candidates)</li>
-        <li>ESDF construction from the scene, queried by bilinear sampling</li>
-        <li>Learnable scorer: clearance risk, geometric smoothness, distance matching</li>
-        <li>Critic training against non-expert trajectories</li>
+        <li>Context-conditioned margin head <em>q<sub>&eta;</sub></em>, CBF residual, gated detour ratio</li>
+        <li>Adversarial teacher training against A*-sampled non-expert trajectories</li>
+        <li>Student distillation: RGB-D only, no ESDF at inference</li>
       </ul>
-      <p class="go"><a href="#" aria-disabled="true">Repository — link once published</a></p>
+      <p class="go"><a href="https://github.com/junyi2005/navdp-safety-critic" target="_blank" rel="noopener">Repository →</a></p>
     </div>
   </div>
 </div></section>
